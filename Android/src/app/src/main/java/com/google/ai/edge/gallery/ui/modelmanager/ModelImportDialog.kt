@@ -73,6 +73,7 @@ import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.IMPORTS_DIR
 import com.google.ai.edge.gallery.data.ModelUtils
 import com.google.ai.edge.gallery.data.createMaxTokensSliderConfig
+import com.google.ai.edge.gallery.data.copyGgufModel
 import com.google.ai.edge.gallery.huggingface.HuggingFaceApiClient
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.ImportedModel
@@ -391,6 +392,26 @@ private fun importModel(
 
     // Import by copying the file over.
     val outputFile = File(modelsDir, "$IMPORTS_DIR/$fileName")
+    if (fileName.endsWith(".gguf", ignoreCase = true)) {
+      try {
+        val source = openSafeInputStream(context, uri)
+          ?: error(context.getString(R.string.failed_to_import))
+        var lastProgress = 0L
+        copyGgufModel(source, outputFile, fileSize, checkCancellation = { ensureActive() }) { copied ->
+          val now = System.currentTimeMillis()
+          if (now - lastProgress > 200 && fileSize > 0) {
+            lastProgress = now
+            onProgress((copied.toFloat() / fileSize).coerceIn(0f, 1f))
+          }
+        }
+        withContext(Dispatchers.Main) { onProgress(1f); onDone() }
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Exception) {
+        withContext(Dispatchers.Main) { onError(error.message ?: context.getString(R.string.failed_to_import)) }
+      }
+      return@launch
+    }
     val outputStream = FileOutputStream(outputFile)
     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
     var bytesRead: Int

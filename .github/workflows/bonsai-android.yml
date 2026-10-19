@@ -32,6 +32,9 @@ jobs:
             Android/src/gradle/libs.versions.toml
             Android/src/gradle/wrapper/gradle-wrapper.properties
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install SDK and native tools
         run: sdkmanager 'platforms;android-37.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
       - name: Build ARM64 APK and check UTF-8 streaming
