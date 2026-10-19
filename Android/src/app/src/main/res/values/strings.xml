@@ -33,8 +33,8 @@
   <string name="aichat_initializing_title" translatable="true" description="Status indicator when initializing model. [CHAR_LIMIT=31]">Initializing model</string>
   <string name="aichat_initializing_content" translatable="true" description="Loading message shown while a chat or translator session is initializing. [CHAR_LIMIT=110]">Sit tight, this can take up to 1 minute</string>
   <string name="app_intro" translatable="true" description="Introduction text shown on the home screen. [CHAR_LIMIT=90]">Explore a world of amazing on-device models from</string>
-  <string name="app_name" translatable="false">Google AI Edge Gallery</string>
-  <string name="app_name_first_part" translatable="false">Google AI</string>
+  <string name="app_name" translatable="false">Local Edge Gallery</string>
+  <string name="app_name_first_part" translatable="false">Local AI</string>
   <string name="app_name_second_part" translatable="false">Edge Gallery</string>
   <string name="askimage_emptystate_title" translatable="false">Ask Image</string>
   <string name="askimage_emptystate_content" translatable="true" description="Instructions shown when starting a chat with image input, explaining how to add images (up to 10). [CHAR_LIMIT=203]">To get started, tap the + below to add an image (max 10 images per chat) and type a prompt to ask a question about it!</string>
@@ -505,7 +505,7 @@
   <string name="previous" translatable="true" description="Button text to navigate to the previous step. [CHAR_LIMIT=18]">Previous</string>
   <string name="next" translatable="true" description="Button text to navigate to the next step. [CHAR_LIMIT=18]">Next</string>
   <string name="unsupported_model_title" translatable="true" description="Title of the dialog showing that the imported model type is unsupported. [CHAR_LIMIT=37]">Unsupported model type</string>
-  <string name="unsupported_file_type_error" translatable="true" description="Message informing the user that only .task or .litertlm file formats are supported. [CHAR_LIMIT=94]">Only \".task\" or \".litertlm\" file type is supported.</string>
+  <string name="unsupported_file_type_error" translatable="true">Supported file types: .task, .litertlm and .gguf.</string>
   <string name="unsupported_web_model_error" translatable="true" description="Message explaining that the model is only for web browsers and not supported on the Android application. [CHAR_LIMIT=121]">Looks like the model is a web-only model and is not supported by the app.</string>
   <string name="file_too_large_warning" translatable="true" description="Warning label when a model file size exceeds device memory limit. [CHAR_LIMIT=50]">Likely too large for device RAM</string>
   <string name="incompatible_device_warning" translatable="true" description="Warning label when a model file is incompatible with device hardware. [CHAR_LIMIT=60]">Likely incompatible with device hardware</string>
@@ -513,11 +513,12 @@
   <string name="copy_url" translatable="true" description="Button label or accessibility action to copy model URL to clipboard. [CHAR_LIMIT=18]">Copy URL</string>
   <string name="url_copied" translatable="true" description="Toast message shown after model URL is copied to clipboard. [CHAR_LIMIT=45]">URL copied to clipboard</string>
   <string name="compatible_files_header" translatable="true" description="Header for compatible files section showing count. [CHAR_LIMIT=40]">Compatible Files (%1$d):</string>
-  <string name="compatible_files_subheader" translatable="true" description="Subheader explaining compatible model files. [CHAR_LIMIT=90]">LiteRT-LM files compatible with AI Edge Gallery.</string>
+  <string name="compatible_files_subheader" translatable="true">LiteRT-LM and GGUF model files.</string>
   <string name="other_files_header" translatable="true" description="Header for incompatible/other files section showing count. [CHAR_LIMIT=32]">Other Files (%1$d):</string>
   <string name="other_files_subheader" translatable="true" description="Subheader explaining other model files. [CHAR_LIMIT=93]">Files that may not be compatible with AI Edge Gallery.</string>
   <string name="incompatible_file_selection_prompt" translatable="true" description="Prompt shown when user taps an incompatible file. [CHAR_LIMIT=142]">This file may not be compatible. You can still copy the file URL to import it directly.</string>
-  <string name="hf_no_model_files_in_card" translatable="true" description="Error message when no LiteRT model files are found in a Hugging Face repository card. [CHAR_LIMIT=100]">No LiteRT model files (.litertlm) found in this model card.</string>
+  <string name="hf_no_model_files_in_card" translatable="true">No supported model files (.litertlm or .gguf) found in this model card.</string>
+  <string name="gguf_import_info">Local CPU text chat. Start with Bonsai 1.7B and a 2048-token context on phones with limited RAM. GGUF models appear in AI Chat and Prompt Lab.</string>
   <string name="hf_last_updated" translatable="true" description="Label showing when a model was last updated. [CHAR_LIMIT=21]">Updated %1$s</string>
   <string name="could_not_fetch_model_details" translatable="true" description="Error message when fetching Hugging Face model details fails. [CHAR_LIMIT=123]">Unable to load model details for %1$s. Please check the URL and try again.</string>
   <string name="test_chat" translatable="true" description="Title for the Test chat task screen where side-loaded models are tested. [CHAR_LIMIT=20]">Test chat</string>

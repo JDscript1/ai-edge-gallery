@@ -366,7 +366,7 @@ fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
   }
 }
 
-private fun createMaxTokensSliderConfig(
+fun createMaxTokensSliderConfig(
   key: ConfigKey,
   sliderMin: Int = MIN_MAX_TOKEN,
   sliderMax: Int = MAX_MAX_TOKEN,
@@ -462,6 +462,21 @@ fun createLlmChatConfigs(
   }
   return configs
 }
+
+/** Separate context and output limits keep memory predictable for small phones. */
+fun createGgufChatConfigs(
+  contextSize: Int = 2048,
+  topK: Int = DEFAULT_TOPK,
+  topP: Float = DEFAULT_TOPP,
+  temperature: Float = DEFAULT_TEMPERATURE,
+): List<Config> = listOf(
+  createMaxTokensSliderConfig(ConfigKeys.MAX_TOKENS, sliderMin = 512, defaultValue = contextSize.coerceIn(512, 4096)),
+  createMaxTokensSliderConfig(ConfigKeys.MAX_OUTPUT_TOKENS, sliderMin = 32, sliderMax = 2048, defaultValue = 512),
+  createTopKSliderConfig(defaultValue = topK),
+  createTopPSliderConfig(defaultValue = topP),
+  createTemperatureSliderConfig(defaultValue = temperature),
+  LabelConfig(ConfigKeys.ACCELERATOR, Accelerator.CPU.label),
+)
 
 /**
  * Creates the configuration settings for an LLM model that only supports NPU.

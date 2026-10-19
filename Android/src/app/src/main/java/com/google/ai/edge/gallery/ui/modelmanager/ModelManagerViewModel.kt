@@ -49,6 +49,7 @@ import com.google.ai.edge.gallery.data.LlmProfile
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelAccessibility
 import com.google.ai.edge.gallery.data.ModelAllowlist
+import com.google.ai.edge.gallery.data.BonsaiModels
 import com.google.ai.edge.gallery.data.ModelDownloadInfo
 import com.google.ai.edge.gallery.data.ModelDownloadStatus
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
@@ -58,6 +59,9 @@ import com.google.ai.edge.gallery.data.ModelType
 import com.google.ai.edge.gallery.data.ModelUtils
 import com.google.ai.edge.gallery.data.NumberSliderConfig
 import com.google.ai.edge.gallery.data.RuntimeType
+import com.google.ai.edge.gallery.data.createGgufChatConfigs
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 import com.google.ai.edge.gallery.data.SOC
 import com.google.ai.edge.gallery.data.SystemPromptRepository
 import com.google.ai.edge.gallery.data.TMP_FILE_EXT
@@ -255,6 +259,7 @@ constructor(
       mapOf(
         RuntimeType.UNKNOWN to LiteRtLmModelDownloader(context, downloadRepository),
         RuntimeType.LITERT_LM to LiteRtLmModelDownloader(context, downloadRepository),
+        RuntimeType.LLAMA_CPP to LiteRtLmModelDownloader(context, downloadRepository),
         RuntimeType.AICORE to AICoreModelDownloader(context),
       ),
   )
@@ -788,7 +793,16 @@ constructor(
       }
 
       // Clean up.
-      cleanupModel(context = context, task = task, model = model)
+      if (model.backendSpec.runtimeType == RuntimeType.LLAMA_CPP) {
+        // Native generation may still be aborting. Wait before replacing the instance.
+        suspendCancellableCoroutine<Unit> { continuation ->
+          cleanupModel(context = context, task = task, model = model, onDone = {
+            if (continuation.isActive) continuation.resume(Unit)
+          })
+        }
+      } else {
+        cleanupModel(context = context, task = task, model = model)
+      }
 
       // Start initialization.
       Log.d(TAG, "Initializing model '${model.name}'...")
@@ -1307,10 +1321,11 @@ constructor(
           }
         }
 
-        if (modelAllowlist == null) {
-          _uiState.update { it.copy(loadingModelAllowlistError = "Failed to load model list") }
-          return@launch
-        }
+        // A local starter catalog keeps Bonsai usable without the remote Google catalog.
+        val baseAllowlist = modelAllowlist ?: ModelAllowlist()
+        modelAllowlist = baseAllowlist.copy(
+          models = (baseAllowlist.models + BonsaiModels.models).distinctBy { it.name }
+        )
 
         Log.d(TAG, "Allowlist: $modelAllowlist")
 
@@ -1621,8 +1636,9 @@ constructor(
   }
 
   private fun createModelFromImportedModelInfo(info: ImportedModel): Model {
+    val isGguf = info.fileName.endsWith(".gguf", ignoreCase = true)
     val accelerators: MutableList<Accelerator> =
-      info.llmConfig.compatibleAcceleratorsList
+      (if (isGguf) listOf(Accelerator.CPU.label) else info.llmConfig.compatibleAcceleratorsList)
         .mapNotNull { acceleratorLabel ->
           when (acceleratorLabel.trim()) {
             Accelerator.GPU.label -> Accelerator.GPU
@@ -1635,15 +1651,20 @@ constructor(
         .ifEmpty { listOf(Accelerator.CPU) }
         .toMutableList()
     val llmMaxToken = info.llmConfig.defaultMaxTokens.takeIf { it > 0 } ?: DEFAULT_MAX_TOKEN
-    val llmSupportImage = info.llmConfig.supportImage
-    val llmSupportAudio = info.llmConfig.supportAudio
-    val llmSupportTinyGarden = info.llmConfig.supportTinyGarden
-    val llmSupportMobileActions = info.llmConfig.supportMobileActions
-    val llmSupportThinking = info.llmConfig.supportThinking
-    val llmSupportSpeculativeDecoding = info.llmConfig.supportSpeculativeDecoding
+    val llmSupportImage = !isGguf && info.llmConfig.supportImage
+    val llmSupportAudio = !isGguf && info.llmConfig.supportAudio
+    val llmSupportTinyGarden = !isGguf && info.llmConfig.supportTinyGarden
+    val llmSupportMobileActions = !isGguf && info.llmConfig.supportMobileActions
+    val llmSupportThinking = !isGguf && info.llmConfig.supportThinking
+    val llmSupportSpeculativeDecoding = !isGguf && info.llmConfig.supportSpeculativeDecoding
     val isForTestOnly = ModelUtils.isImportedUrlForTestOnly(info.url)
     val configs: MutableList<Config> =
-      createLlmChatConfigs(
+      (if (isGguf) createGgufChatConfigs(
+        contextSize = llmMaxToken,
+        topK = info.llmConfig.defaultTopk,
+        topP = info.llmConfig.defaultTopp,
+        temperature = info.llmConfig.defaultTemperature,
+      ) else createLlmChatConfigs(
           defaultMaxToken = llmMaxToken,
           defaultTopK = info.llmConfig.defaultTopk,
           defaultTopP = info.llmConfig.defaultTopp,
@@ -1651,7 +1672,7 @@ constructor(
           accelerators = accelerators,
           supportThinking = llmSupportThinking,
           supportSpeculativeDecoding = llmSupportSpeculativeDecoding,
-        )
+        ))
         .toMutableList()
     if (llmSupportTinyGarden && !isForTestOnly) {
       configs.add(RESET_CONVERSATION_TURN_COUNT_CONFIG)
@@ -1687,7 +1708,10 @@ constructor(
         supportAudio = llmSupportAudio,
         capabilities = capabilityToTaskTypes.keys.toList(),
         capabilityToTaskTypes = capabilityToTaskTypes,
-        backendSpec = BackendSpec(runtimeType = RuntimeType.LITERT_LM, accelerators = accelerators),
+        backendSpec = BackendSpec(
+          runtimeType = if (isGguf) RuntimeType.LLAMA_CPP else RuntimeType.LITERT_LM,
+          accelerators = accelerators,
+        ),
       )
     model.preProcess()
 

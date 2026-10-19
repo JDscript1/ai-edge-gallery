@@ -61,6 +61,13 @@ enum class RuntimeType(
     supportsTopLevelDownload = true,
     supportsDelete = true,
   ),
+  @SerializedName("llama_cpp")
+  LLAMA_CPP(
+    downloadsViaRepository = true,
+    autoDownloadsOnStartup = false,
+    supportsTopLevelDownload = true,
+    supportsDelete = true,
+  ),
   @SerializedName("aicore")
   AICORE(
     downloadsViaRepository = false,

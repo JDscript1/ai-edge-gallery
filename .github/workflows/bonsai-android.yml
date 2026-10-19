@@ -1,0 +1,51 @@
+name: Build Bonsai Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/bonsai-local-models]
+    paths: [Android/**, third_party/**, .gitmodules, .github/workflows/bonsai-android.yml]
+  pull_request:
+    paths: [Android/**, third_party/**, .gitmodules, .github/workflows/bonsai-android.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Android/src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            Android/src/**/*.gradle.kts
+            Android/src/gradle/libs.versions.toml
+            Android/src/gradle/wrapper/gradle-wrapper.properties
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK and native tools
+        run: sdkmanager 'platforms;android-37.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Build ARM64 APK and check UTF-8 streaming
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace --max-workers=2
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Local-Edge-Gallery-Bonsai-arm64-${{ github.sha }}
+          path: Android/src/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: Android/src/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore

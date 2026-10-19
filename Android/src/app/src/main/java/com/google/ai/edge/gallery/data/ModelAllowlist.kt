@@ -163,7 +163,14 @@ data class AllowedModel(
         accelerators.size == 1 &&
           (accelerators[0] == Accelerator.NPU || accelerators[0] == Accelerator.TPU)
       configs =
-        (if (runtimeType == RuntimeType.AICORE) {
+        (if (runtimeType == RuntimeType.LLAMA_CPP) {
+            createGgufChatConfigs(
+              contextSize = llmMaxToken,
+              topK = defaultTopK,
+              topP = defaultTopP,
+              temperature = defaultTemperature,
+            )
+          } else if (runtimeType == RuntimeType.AICORE) {
             createAICoreConfigs(
               defaultTopK = defaultTopK,
               defaultTemperature = if (defaultTemperature > 1.0f) 1.0f else defaultTemperature,

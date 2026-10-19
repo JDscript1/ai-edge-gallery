@@ -72,6 +72,7 @@ import com.google.ai.edge.gallery.data.ConfigKey
 import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.IMPORTS_DIR
 import com.google.ai.edge.gallery.data.ModelUtils
+import com.google.ai.edge.gallery.data.createMaxTokensSliderConfig
 import com.google.ai.edge.gallery.huggingface.HuggingFaceApiClient
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.ImportedModel
@@ -116,12 +117,23 @@ fun ModelImportDialog(
   val info = remember { getFileSizeAndDisplayNameFromUri(context = context, uri = uri) }
   var fileSize by remember { mutableLongStateOf(info.first) }
   val fileName by remember { mutableStateOf(ensureValidFileName(info.second)) }
+  val isGguf = fileName.endsWith(".gguf", ignoreCase = true)
   val importConfigs =
     remember(uri) {
       Config.createLlmImportConfigs(
-        accelerators = SUPPORTED_ACCELERATORS,
+        accelerators = if (isGguf) listOf(Accelerator.CPU) else SUPPORTED_ACCELERATORS,
         isForTestOnly = ModelUtils.isImportedUrlForTestOnly(uri.toString()),
-      )
+      ).map { config ->
+        if (isGguf && config.key == ConfigKeys.DEFAULT_MAX_TOKENS) {
+          createMaxTokensSliderConfig(ConfigKeys.DEFAULT_MAX_TOKENS, sliderMin = 512, defaultValue = 2048)
+        } else config
+      }.filterNot { config ->
+        isGguf && config.key in listOf(
+          ConfigKeys.SUPPORT_IMAGE, ConfigKeys.SUPPORT_AUDIO, ConfigKeys.SUPPORT_THINKING,
+          ConfigKeys.SUPPORT_SPECULATIVE_DECODING, ConfigKeys.SUPPORT_TINY_GARDEN,
+          ConfigKeys.SUPPORT_MOBILE_ACTIONS,
+        )
+      }
     }
 
   // Indicates that the file size is still being fetched and we should disable the import button
@@ -163,6 +175,9 @@ fun ModelImportDialog(
       for ((key, value) in defaultValues) {
         put(key.label, value)
       }
+      if (isGguf) {
+        put(ConfigKeys.COMPATIBLE_ACCELERATORS.label, Accelerator.CPU.label)
+      }
     }
   }
   val values: SnapshotStateMap<String, Any> = remember {
@@ -197,6 +212,9 @@ fun ModelImportDialog(
           modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false),
           verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+          if (isGguf) {
+            Text(stringResource(R.string.gguf_import_info), style = MaterialTheme.typography.bodySmall)
+          }
           // Default configs for users to set.
           ConfigEditorsPanel(configs = importConfigs, values = values)
         }

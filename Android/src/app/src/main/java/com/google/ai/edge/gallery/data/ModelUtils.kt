@@ -35,7 +35,9 @@ fun Model.getTargetTaskIdsForImportedModel(): Set<String> {
   return buildSet {
     add(BuiltInTaskId.LLM_CHAT)
     add(BuiltInTaskId.LLM_PROMPT_LAB)
-    add(BuiltInTaskId.LLM_AGENT_CHAT)
+    if (backendSpec.runtimeType != RuntimeType.LLAMA_CPP) {
+      add(BuiltInTaskId.LLM_AGENT_CHAT)
+    }
     if (supportImage) {
       add(BuiltInTaskId.LLM_ASK_IMAGE)
     }

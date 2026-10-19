@@ -226,6 +226,15 @@ internal object AppModule {
   @Provides
   @Singleton
   @IntoMap
+  @RuntimeTypeKey(RuntimeType.LLAMA_CPP)
+  fun provideGgufModelDownloader(
+    @ApplicationContext context: Context,
+    downloadRepository: DownloadRepository,
+  ): ModelDownloader = LiteRtLmModelDownloader(context, downloadRepository)
+
+  @Provides
+  @Singleton
+  @IntoMap
   @RuntimeTypeKey(RuntimeType.AICORE)
   fun provideAICoreModelDownloader(@ApplicationContext context: Context): ModelDownloader {
     return AICoreModelDownloader(context)

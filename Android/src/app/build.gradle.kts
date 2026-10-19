@@ -33,7 +33,7 @@ android {
   compileSdk { this.version = release(37) { minorApiLevel = 0 } }
 
   defaultConfig {
-    applicationId = "com.google.aiedge.gallery"
+    applicationId = "com.jdscript.edgegallery"
     minSdk = 31
     targetSdk = 37
     versionCode = 46
@@ -49,6 +49,10 @@ android {
     buildConfigField("String", "FEEDBACK_API_KEY", "\"\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    ndk { abiFilters += "arm64-v8a" }
+    externalNativeBuild {
+      cmake { arguments += listOf("-DANDROID_STL=c++_shared", "-DCMAKE_BUILD_TYPE=Release") }
+    }
   }
 
   buildTypes {
@@ -67,6 +71,13 @@ android {
     buildConfig = true
   }
   packaging { jniLibs { pickFirsts.add("**/liblitertlm_jni.so") } }
+  ndkVersion = "27.1.12297006"
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
 }
 
 kotlin {

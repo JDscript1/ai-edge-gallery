@@ -633,9 +633,9 @@ private fun validateAndProcessModelUri(
   Log.d(TAG, "Validating URI: $uri, fileName: $fileName, isWebImport: $isWebImport")
   val hasValidExtension =
     if (isWebImport) {
-      fileName != null && fileName.endsWith(".litertlm")
+      fileName != null && (fileName.endsWith(".litertlm", true) || fileName.endsWith(".gguf", true))
     } else {
-      fileName != null && (fileName.endsWith(".task") || fileName.endsWith(".litertlm"))
+      fileName != null && listOf(".task", ".litertlm", ".gguf").any { fileName.endsWith(it, true) }
     }
 
   if (!hasValidExtension) {

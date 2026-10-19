@@ -31,14 +31,14 @@ import java.net.URI
 val HfModelItemProto.modelName: String
   get() = id.substringAfterLast("/")
 
-/** Checks if repo contains LiteRT model files (.litertlm or .task). */
+/** Checks whether a repo contains supported LiteRT-LM or GGUF model files. */
 fun HfModelItemProto.hasCompatibleModelFiles(): Boolean {
-  return siblingsList.any { isLiteRtLmFileName(it.rfilename) }
+  return siblingsList.any { isSupportedLlmFileName(it.rfilename) }
 }
 
-/** Gets all LiteRT model files in this model card. */
+/** Gets all supported language model files in this model card. */
 fun HfModelItemProto.getCompatibleModelFiles(): List<String> {
-  return siblingsList.map { it.rfilename }.filter { isLiteRtLmFileName(it) }
+  return siblingsList.map { it.rfilename }.filter { isSupportedLlmFileName(it) }
 }
 
 /** Checks if the model card has at least one file compatible with current device hardware. */
@@ -105,10 +105,10 @@ fun isFileTooLarge(sizeBytes: Long, deviceRamBytes: Long? = null): Boolean {
   return sizeBytes > halfRamThresholdBytes
 }
 
-/** Checks if a filename has a supported LiteRT-LM model extension (.litertlm). */
-fun isLiteRtLmFileName(filename: String): Boolean {
+/** A supported extension does not guarantee that an architecture or quantization is supported. */
+fun isSupportedLlmFileName(filename: String): Boolean {
   val lower = filename.lowercase()
-  return lower.endsWith(".litertlm") && !lower.contains("-web")
+  return (lower.endsWith(".litertlm") || lower.endsWith(".gguf")) && !lower.contains("-web")
 }
 
 /** Known mobile hardware vendors on Android devices. */
@@ -129,7 +129,7 @@ private val nonAndroidPlatformTokens =
 data class DeviceHardwareInfo(val vendor: DeviceVendor, val rawSocName: String = SOC.lowercase()) {
   /** Checks if a model filename is compatible with this device's hardware capabilities. */
   fun isCompatibleWithFile(filename: String): Boolean {
-    if (!isLiteRtLmFileName(filename)) {
+    if (!isSupportedLlmFileName(filename)) {
       return false
     }
     val lower = filename.lowercase().removeSuffix(".litertlm")
@@ -183,7 +183,7 @@ data class HfUrlInfo(
   val isDirectModelFile: Boolean = false,
 ) {
   companion object {
-    private val MODEL_FILE_EXTENSIONS = setOf(".litertlm", ".task")
+    private val MODEL_FILE_EXTENSIONS = setOf(".litertlm", ".task", ".gguf")
     private val HF_ACTION_KEYWORDS = setOf("resolve", "blob", "tree", "raw")
 
     private fun String.isModelFileName(): Boolean = MODEL_FILE_EXTENSIONS.any {
