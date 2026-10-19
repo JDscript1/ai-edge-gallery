@@ -32,6 +32,8 @@ import java.net.URL
 import java.net.URLEncoder
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 private const val TAG = "AGHfApiClient"
@@ -64,14 +66,14 @@ constructor(@IoDispatcher private val ioDispatcher: CoroutineDispatcher) {
     accessToken: String? = null,
   ): List<HfModelItemProto> =
     withContext(ioDispatcher) {
-      val urlString = buildApiUrl(query = query, sort = sort, limit = limit)
-      val responseText = executeGetRequest(urlString = urlString, accessToken = accessToken)
-
-      if (responseText.isNullOrEmpty()) {
-        return@withContext emptyList()
-      }
-
-      return@withContext parseModelListJson(responseText)
+      // These are separate queries: combining HF filters would require both tags on a model.
+      listOf("litert-lm", "gguf").map { format ->
+        async {
+          val urlString = buildApiUrl(query = query, sort = sort, limit = limit, format = format)
+          val response = executeGetRequest(urlString = urlString, accessToken = accessToken)
+          if (response.isNullOrEmpty()) emptyList() else parseModelListJson(response)
+        }
+      }.awaitAll().flatten().distinctBy { it.id }
     }
 
   private fun parseModelListJson(responseText: String): List<HfModelItemProto> {
@@ -96,10 +98,11 @@ constructor(@IoDispatcher private val ioDispatcher: CoroutineDispatcher) {
     query: String,
     sort: HfSortOptionProto = HfSortOptionProto.HF_SORT_OPTION_DOWNLOADS,
     limit: Int,
+    format: String = "litert-lm",
   ): String {
     val queryParams =
       mutableListOf(
-        "filter" to "litert-lm",
+        "filter" to format,
         "sort" to sort.queryValue,
         "direction" to "-1",
         "limit" to limit.toString(),
