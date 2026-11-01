@@ -8,12 +8,13 @@ object BonsaiModels {
       size = "1.7B", bytes = 248302272L,
       revision = "210a9e99f79cb184909d49595906526eb2b3dd9a", minRamGb = 3,
       description = "Small 1-bit Bonsai text model. Start here on phones with 4–5 GB RAM. " +
-        "Runs locally on the CPU with a 2048-token context; actual memory and speed depend on the device.",
+        "Runs locally on the CPU with a 2048-token default context, adjustable up to 16384; " +
+        "actual memory and speed depend on the device.",
     ),
     model(
       size = "4B", bytes = 572270624L,
       revision = "78f2c2bacd0904ffaba24b4873ed975e5818354a", minRamGb = 4,
-      description = "Larger 1-bit Bonsai text model for local CPU chat. " +
+      description = "Larger 1-bit Bonsai text model for local chat on the CPU. " +
         "Use the 1.7B model if memory is limited or generation is too slow.",
     ),
   )
@@ -30,7 +31,7 @@ object BonsaiModels {
     taskTypes = listOf(BuiltInTaskId.LLM_CHAT, BuiltInTaskId.LLM_PROMPT_LAB),
     defaultConfig = DefaultConfig(
       topK = 20, topP = 0.95f, temperature = 0.6f, accelerators = "cpu",
-      visionAccelerator = null, maxContextLength = 4096, maxTokens = 2048,
+      visionAccelerator = null, maxContextLength = 16384, maxTokens = 2048,
     ),
   )
 }

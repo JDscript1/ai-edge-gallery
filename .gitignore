@@ -1,3 +1,4 @@
 .DS_Store
 .local-build/
 .local-models/
+scripts/__pycache__/

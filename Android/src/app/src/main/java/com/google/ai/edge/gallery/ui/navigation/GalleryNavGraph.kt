@@ -95,6 +95,7 @@ private const val ROUTE_MODEL = "route_model"
 private const val ROUTE_BENCHMARK = "benchmark"
 private const val ROUTE_MODEL_MANAGER = "model_manager"
 private const val ARG_IMPORT_URL = "import_url"
+private const val ARG_SHOW_IMPORT = "show_import"
 private const val ROUTE_NOTIFICATIONS = "notifications"
 private const val ENTER_ANIMATION_DURATION_MS = 500
 private val ENTER_ANIMATION_EASING = EaseOutExpo
@@ -234,6 +235,9 @@ fun GalleryNavHost(
             modelManagerViewModel.selectModel(model)
             navController.navigate("$ROUTE_MODEL/${it.id}/${model.name}")
           },
+          onAddModelClicked = {
+            navController.navigate("$ROUTE_MODEL_MANAGER?$ARG_SHOW_IMPORT=true")
+          },
           onBenchmarkClicked = { model ->
             firebaseAnalytics?.logEvent(
               GalleryEvent.CAPABILITY_SELECT.id,
@@ -358,14 +362,18 @@ fun GalleryNavHost(
 
     // Global model manager page.
     composable(
-      route = "$ROUTE_MODEL_MANAGER?$ARG_IMPORT_URL={$ARG_IMPORT_URL}",
+      route = "$ROUTE_MODEL_MANAGER?$ARG_IMPORT_URL={$ARG_IMPORT_URL}&$ARG_SHOW_IMPORT={$ARG_SHOW_IMPORT}",
       arguments =
         listOf(
           navArgument(ARG_IMPORT_URL) {
             type = NavType.StringType
             nullable = true
             defaultValue = null
-          }
+          },
+          navArgument(ARG_SHOW_IMPORT) {
+            type = NavType.BoolType
+            defaultValue = false
+          },
         ),
       enterTransition = {
         if (
@@ -389,10 +397,12 @@ fun GalleryNavHost(
       },
     ) { backStackEntry ->
       val importUrl = backStackEntry.arguments?.getString(ARG_IMPORT_URL)
+      val showImport = backStackEntry.arguments?.getBoolean(ARG_SHOW_IMPORT) ?: false
       GlobalModelManager(
         viewModel = modelManagerViewModel,
         tosViewModel = tosViewModel,
         initialImportUrl = importUrl,
+        openImportSheet = showImport,
         navigateUp = {
           enableHomeScreenAnimation = false
           navController.navigateUp()

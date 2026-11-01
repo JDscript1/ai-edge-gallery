@@ -135,6 +135,12 @@ interface DataStoreRepository {
 
   /** Returns whether automatic context compaction is enabled for the specified [taskId]. */
   fun readAutoContextCompact(taskId: String): Boolean
+
+  /** Saves the Thinking toggle for the specified model. */
+  fun saveEnableThinking(modelName: String, enabled: Boolean)
+
+  /** Returns the persisted Thinking toggles, indexed by model name. */
+  fun readEnableThinking(): Map<String, Boolean>
 }
 
 /** Repository for managing data using Proto DataStore. */
@@ -491,5 +497,17 @@ class DefaultDataStoreRepository(
       val settings = dataStore.data.first()
       settings.autoContextCompactByTaskMap[taskId] ?: false
     }
+  }
+
+  override fun saveEnableThinking(modelName: String, enabled: Boolean) {
+    runBlocking {
+      dataStore.updateData { settings ->
+        settings.toBuilder().putEnableThinkingByModel(modelName, enabled).build()
+      }
+    }
+  }
+
+  override fun readEnableThinking(): Map<String, Boolean> {
+    return runBlocking { dataStore.data.first().enableThinkingByModelMap }
   }
 }

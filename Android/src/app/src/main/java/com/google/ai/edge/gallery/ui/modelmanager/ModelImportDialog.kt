@@ -126,7 +126,12 @@ fun ModelImportDialog(
         isForTestOnly = ModelUtils.isImportedUrlForTestOnly(uri.toString()),
       ).map { config ->
         if (isGguf && config.key == ConfigKeys.DEFAULT_MAX_TOKENS) {
-          createMaxTokensSliderConfig(ConfigKeys.DEFAULT_MAX_TOKENS, sliderMin = 512, defaultValue = 2048)
+          createMaxTokensSliderConfig(
+            ConfigKeys.DEFAULT_MAX_TOKENS,
+            sliderMin = 512,
+            sliderMax = 16384,
+            defaultValue = 2048,
+          )
         } else config
       }.filterNot { config ->
         isGguf && config.key in listOf(

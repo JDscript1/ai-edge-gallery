@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,6 +62,7 @@ import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -99,6 +101,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -108,7 +111,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.BuiltInTaskId
+import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.ModelCapability
+import com.google.ai.edge.gallery.runtime.gguf.GgufModelHelper
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.common.AudioAnimation
 import com.google.ai.edge.gallery.ui.common.ErrorDialog
@@ -776,6 +782,43 @@ fun ChatPanel(
       }
 
       val modelManagerUiState by modelManagerViewModel.uiState.collectAsStateWithLifecycle()
+
+      val supportsThinking = task.id == BuiltInTaskId.LLM_CHAT &&
+        (GgufModelHelper.supportsThinking(selectedModel) ||
+          task.allowCapability(ModelCapability.LLM_THINKING, selectedModel))
+      if (supportsThinking) {
+        val thinkingEnabled = remember(selectedModel.name, modelManagerUiState.configValuesUpdateTrigger) {
+          selectedModel.getBooleanConfigValue(ConfigKeys.ENABLE_THINKING, false)
+        }
+        val canChangeThinking = !uiState.inProgress && !uiState.isResettingSession &&
+          modelInitStatus is Model.InitializationStatus.Initialized
+        Row(
+          modifier = Modifier.fillMaxWidth()
+            .toggleable(
+              value = thinkingEnabled,
+              enabled = canChangeThinking,
+              role = Role.Checkbox,
+              onValueChange = { enabled ->
+                selectedModel.configValues = selectedModel.configValues +
+                  (ConfigKeys.ENABLE_THINKING.label to enabled)
+                modelManagerViewModel.saveEnableThinking(selectedModel.name, enabled)
+                modelManagerViewModel.updateConfigValuesUpdateTrigger()
+              },
+            )
+            .padding(horizontal = 16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          Checkbox(checked = thinkingEnabled, onCheckedChange = null, enabled = canChangeThinking)
+          Text(stringResource(R.string.chat_thinking_mode), style = MaterialTheme.typography.labelLarge)
+          Spacer(Modifier.weight(1f))
+          Text(
+            stringResource(if (thinkingEnabled) R.string.chat_thinking_on else R.string.chat_thinking_off),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
 
       MessageInputText(
         task = task,

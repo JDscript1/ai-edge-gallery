@@ -2,17 +2,11 @@
   
   on:
     workflow_dispatch:
-    push:
-      branches: [ "main" ]
-      paths:
-        - 'Android/**'
-    pull_request:
-      branches: [ "main" ]
-      paths:
-        - 'Android/**'
   
   jobs:
     build_apk:
+      # This fork is developed and compiled locally in Termux.
+      if: false
       name: Build Android APK
       runs-on: ubuntu-latest
       defaults:

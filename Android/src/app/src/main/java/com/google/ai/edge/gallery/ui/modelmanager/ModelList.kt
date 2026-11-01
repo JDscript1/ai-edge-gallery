@@ -33,14 +33,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,6 +97,7 @@ fun ModelList(
   onModelClicked: (Model) -> Unit,
   onBenchmarkClicked: (Model) -> Unit,
   modifier: Modifier = Modifier,
+  onAddModelClicked: () -> Unit = {},
 ) {
   // This is just to update "models" list when task.updateTrigger is updated so that the UI can
   // be properly updated.
@@ -380,6 +386,27 @@ fun ModelList(
                 translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
               },
           )
+        }
+      }
+
+      item(key = "addModel") {
+        OutlinedButton(
+          onClick = onAddModelClicked,
+          modifier =
+            Modifier.fillMaxWidth()
+              .padding(top = 24.dp)
+              .graphicsLayer {
+                alpha = modelListProgress
+                translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
+              },
+        ) {
+          Icon(
+            Icons.Filled.Add,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(stringResource(R.string.model_list_add_model_title))
         }
       }
     }

@@ -63,6 +63,9 @@
   <string name="chat_you" translatable="true" description="Label indicating a message was sent by the user. [CHAR_LIMIT=18]">You</string>
   <string name="chat_llm_agent_name" translatable="true" description="Display name for the LLM agent in chat. [CHAR_LIMIT=18]">LLM</string>
   <string name="show_thinking" translatable="true" description="Label for a button to show the model's reasoning/thinking steps. [CHAR_LIMIT=24]">Show thinking</string>
+  <string name="chat_thinking_mode" translatable="false">Thinking</string>
+  <string name="chat_thinking_on" translatable="false">ON</string>
+  <string name="chat_thinking_off" translatable="false">OFF</string>
   <string name="checking_access" translatable="true" description="Message shown while checking if the user has access to a model. [CHAR_LIMIT=31]">Checking access…</string>
   <string name="close" translatable="true" description="Common button label to close a screen or dialog. [CHAR_LIMIT=9]">Close</string>
   <string name="collapse_all" translatable="true" description="Button label to collapse all expanded sections. [CHAR_LIMIT=23]">Collapse all</string>
@@ -145,6 +148,7 @@
   <string name="max_tokens_warning_message" translatable="true" description="Warning message displayed when the user sets a high max token limit, indicating potential app instability. [CHAR_LIMIT=111]">Setting max tokens above 10000 may cause app to be unstable.</string>
   <string name="model_is_initializing_msg" translatable="true" description="Status message showing that the machine learning model is currently loading or preparing. [CHAR_LIMIT=45]">Initializing model…</string>
   <string name="model_list_imported_models_title" translatable="true" description="Section header in the model list for models that have been imported locally by the user. [CHAR_LIMIT=26]">Imported models</string>
+  <string name="model_list_add_model_title" translatable="true" description="Button in the model list that opens the import flow to add a local GGUF model. [CHAR_LIMIT=26]">Add model</string>
   <plurals name="model_list_number_of_models_available" translatable="true">
     <item quantity="one">%d model available</item>
     <item quantity="other">%d models available</item>

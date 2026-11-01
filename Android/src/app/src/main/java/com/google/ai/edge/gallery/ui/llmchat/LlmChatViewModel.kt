@@ -36,6 +36,7 @@ import com.google.ai.edge.gallery.common.metrics.InferenceMetrics
 import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.runtime.gguf.GgufModelHelper
 import com.google.ai.edge.gallery.data.SystemPromptRepository
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.awaitInitialization
@@ -212,9 +213,9 @@ open class LlmChatViewModelBase(
       }
 
       val enableThinking =
-        allowThinking &&
+        (allowThinking || GgufModelHelper.supportsThinking(model)) &&
           model.getBooleanConfigValue(key = ConfigKeys.ENABLE_THINKING, defaultValue = false)
-      val extraContext = if (enableThinking) mapOf("enable_thinking" to "true") else emptyMap()
+      val extraContext = mapOf("enable_thinking" to enableThinking.toString())
       val metadata =
         buildMap<String, Any> {
           put(AgentRequest.SESSION_ID, currentSessionId)

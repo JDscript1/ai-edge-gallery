@@ -110,6 +110,7 @@ fun GlobalModelManager(
   modifier: Modifier = Modifier,
   tosViewModel: TosViewModel? = null,
   initialImportUrl: String? = null,
+  openImportSheet: Boolean = false,
 ) {
   val uiState by viewModel.uiState.collectAsState()
   val builtInModels = remember { mutableStateListOf<Model>() }
@@ -117,7 +118,7 @@ fun GlobalModelManager(
   val taskCandidates = remember { mutableStateListOf<Task>() }
   var modelForTaskCandidate by remember { mutableStateOf<Model?>(null) }
   var showTaskSelectorBottomSheet by remember { mutableStateOf(false) }
-  var showImportModelSheet by remember { mutableStateOf(false) }
+  var showImportModelSheet by remember { mutableStateOf(openImportSheet) }
   var showHfExploreScreen by remember { mutableStateOf(false) }
   var showHuggingFaceUrlDialog by remember { mutableStateOf(false) }
   var huggingFaceUrlInput by remember { mutableStateOf("") }
@@ -287,6 +288,13 @@ fun GlobalModelManager(
         },
         // The "action" component at the right.
         actions = {
+          IconButton(onClick = { showImportModelSheet = true }) {
+            Icon(
+              imageVector = Icons.Filled.Add,
+              contentDescription = stringResource(R.string.cd_import_model_button),
+              tint = MaterialTheme.colorScheme.onSurface,
+            )
+          }
           IconButton(onClick = { navigateUp() }) {
             Icon(
               imageVector = Icons.Rounded.Close,

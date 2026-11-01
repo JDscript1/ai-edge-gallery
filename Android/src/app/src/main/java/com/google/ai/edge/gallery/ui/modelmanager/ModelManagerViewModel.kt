@@ -372,9 +372,14 @@ constructor(
 
   fun processTasks() {
     val curTasks = getActiveCustomTasks().map { it.task }
+    val enableThinkingByModel = dataStoreRepository.readEnableThinking()
     for (task in curTasks) {
       for (model in task.models) {
         model.preProcess()
+        enableThinkingByModel[model.name]?.let { enabled ->
+          model.configValues =
+            model.configValues + (ConfigKeys.ENABLE_THINKING.label to enabled)
+        }
       }
       // Move the model that is best for this task to the front.
       val bestModel = task.models.find { it.bestForTaskIds.contains(task.id) }
@@ -387,6 +392,10 @@ constructor(
 
   fun updateConfigValuesUpdateTrigger() {
     _uiState.update { it.copy(configValuesUpdateTrigger = System.currentTimeMillis()) }
+  }
+
+  fun saveEnableThinking(modelName: String, enabled: Boolean) {
+    dataStoreRepository.saveEnableThinking(modelName, enabled)
   }
 
   fun selectModel(model: Model) {
@@ -1053,6 +1062,10 @@ constructor(
 
     // Create model.
     val model = createModelFromImportedModelInfo(info = info)
+    dataStoreRepository.readEnableThinking()[model.name]?.let { enabled ->
+      model.configValues =
+        model.configValues + (ConfigKeys.ENABLE_THINKING.label to enabled)
+    }
 
     // Remove duplicated imported model if existed across all tasks.
     for (task in uiState.value.tasks) {
@@ -1305,8 +1318,9 @@ constructor(
         }
 
         if (modelAllowlist == null) {
-          // Load from github.
-          var version = BuildConfig.VERSION_NAME.replace(".", "_")
+          // Load from github. Fork suffixes such as "-local.7" are not part of the
+          // upstream allowlist filename.
+          val version = BuildConfig.VERSION_NAME.substringBefore('-').replace(".", "_")
           val url = getAllowlistUrl(version)
           Log.d(TAG, "Loading model allowlist from internet. Url: $url")
           val data = getJsonResponse<ModelAllowlist>(url = url)
@@ -1596,11 +1610,16 @@ constructor(
     }
 
     // Load imported models.
+    val enableThinkingByModel = dataStoreRepository.readEnableThinking()
     for (importedModel in dataStoreRepository.readImportedModels()) {
       Log.d(TAG, "stored imported model: $importedModel")
 
       // Create model.
       val model = createModelFromImportedModelInfo(info = importedModel)
+      enableThinkingByModel[model.name]?.let { enabled ->
+        model.configValues =
+          model.configValues + (ConfigKeys.ENABLE_THINKING.label to enabled)
+      }
 
       // Add to task.
       for (taskId in model.getTargetTaskIdsForImportedModel()) {
@@ -1637,8 +1656,10 @@ constructor(
 
   private fun createModelFromImportedModelInfo(info: ImportedModel): Model {
     val isGguf = info.fileName.endsWith(".gguf", ignoreCase = true)
+    // GGUF imports stay on the CPU: Vulkan offload crashes this Adreno driver.
     val accelerators: MutableList<Accelerator> =
-      (if (isGguf) listOf(Accelerator.CPU.label) else info.llmConfig.compatibleAcceleratorsList)
+      (if (isGguf) listOf(Accelerator.CPU.label)
+       else info.llmConfig.compatibleAcceleratorsList)
         .mapNotNull { acceleratorLabel ->
           when (acceleratorLabel.trim()) {
             Accelerator.GPU.label -> Accelerator.GPU
@@ -1664,6 +1685,7 @@ constructor(
         topK = info.llmConfig.defaultTopk,
         topP = info.llmConfig.defaultTopp,
         temperature = info.llmConfig.defaultTemperature,
+        accelerators = accelerators,
       ) else createLlmChatConfigs(
           defaultMaxToken = llmMaxToken,
           defaultTopK = info.llmConfig.defaultTopk,

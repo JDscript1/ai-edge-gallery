@@ -28,6 +28,10 @@ plugins {
   alias(libs.plugins.ksp)
 }
 
+val termuxBuild = providers.gradleProperty("termuxBuild").map(String::toBoolean).getOrElse(
+  System.getenv("PREFIX")?.startsWith("/data/data/com.termux/") == true
+)
+
 android {
   namespace = "com.google.ai.edge.gallery"
   compileSdk { this.version = release(37) { minorApiLevel = 0 } }
@@ -36,8 +40,8 @@ android {
     applicationId = "com.jdscript.edgegallery"
     minSdk = 31
     targetSdk = 37
-    versionCode = 46
-    versionName = "1.0.20"
+    versionCode = 53
+    versionName = "1.0.20-local.8"
 
     // Needed for HuggingFace auth workflows.
     // Use the scheme of the "Redirect URLs" in HuggingFace app.
@@ -50,7 +54,7 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     ndk { abiFilters += "arm64-v8a" }
-    externalNativeBuild {
+    if (!termuxBuild) externalNativeBuild {
       cmake {
         arguments += listOf(
           "-DANDROID_STL=c++_shared", "-DCMAKE_BUILD_TYPE=Release",
@@ -76,13 +80,28 @@ android {
     buildConfig = true
   }
   packaging { jniLibs { pickFirsts.add("**/liblitertlm_jni.so") } }
+  if (termuxBuild) {
+    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("termux-native/jniLibs").get().asFile)
+    packaging.jniLibs.keepDebugSymbols.add("**/*.so")
+  }
   ndkVersion = "27.1.12297006"
-  externalNativeBuild {
+  if (!termuxBuild) externalNativeBuild {
     cmake {
       path = file("src/main/cpp/CMakeLists.txt")
       version = "3.22.1"
     }
   }
+}
+
+if (termuxBuild) {
+  val verifyTermuxNative by tasks.registering {
+    doLast {
+      check(layout.buildDirectory.file("termux-native/jniLibs/arm64-v8a/libgallery_gguf.so").get().asFile.isFile) {
+        "Build the ARM64 native library first: python scripts/build-local.py (from the repository root)"
+      }
+    }
+  }
+  tasks.named("preBuild").configure { dependsOn(verifyTermuxNative) }
 }
 
 kotlin {
@@ -160,7 +179,14 @@ dependencies {
 configurations.all { resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0") }
 
 protobuf {
-  protoc { artifact = "com.google.protobuf:protoc:4.26.1" }
+  protoc {
+    if (termuxBuild) {
+      path = providers.gradleProperty("termuxProtoc")
+        .orElse("/data/data/com.termux/files/usr/bin/protoc").get()
+    } else {
+      artifact = "com.google.protobuf:protoc:${libs.versions.protobufJavaLite.get()}"
+    }
+  }
   generateProtoTasks {
     all().forEach { task ->
       task.builtins {

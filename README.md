@@ -1,7 +1,8 @@
 # Google AI Edge Gallery ✨
 
-> **Local Edge Gallery fork:** local CPU chat with Bonsai and other compatible GGUF models.
+> **Local Edge Gallery fork:** local CPU chat with Bonsai and other compatible GGUF models, with a Q8_0 KV cache and context up to 16384 tokens. The Vulkan backend is built but disabled pending a driver that runs it correctly.
 > See [BONSAI.md](BONSAI.md) for setup, Android builds and compatibility.
+> Progresul proiectului și pașii următori, în română: [PROGRES_SI_PLAN.md](PROGRES_SI_PLAN.md).
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/google-ai-edge/gallery)](https://github.com/google-ai-edge/gallery/releases)

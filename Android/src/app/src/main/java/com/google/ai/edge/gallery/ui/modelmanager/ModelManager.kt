@@ -48,6 +48,7 @@ fun ModelManager(
   onModelClicked: (Model) -> Unit,
   modifier: Modifier = Modifier,
   onBenchmarkClicked: (Model) -> Unit = {},
+  onAddModelClicked: () -> Unit = {},
 ) {
   // Set title based on the task.
   val title = task.label
@@ -89,6 +90,7 @@ fun ModelManager(
       enableAnimation = enableAnimation,
       onModelClicked = onModelClicked,
       onBenchmarkClicked = onBenchmarkClicked,
+      onAddModelClicked = onAddModelClicked,
       modifier = Modifier.fillMaxSize(),
     )
   }

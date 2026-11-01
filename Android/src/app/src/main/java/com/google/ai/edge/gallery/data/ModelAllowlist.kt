@@ -164,11 +164,14 @@ data class AllowedModel(
           (accelerators[0] == Accelerator.NPU || accelerators[0] == Accelerator.TPU)
       configs =
         (if (runtimeType == RuntimeType.LLAMA_CPP) {
+            // Vulkan GGUF offload is disabled: the Adreno driver rejects llama.cpp
+            // compute pipelines and loses the device on larger offloads.
             createGgufChatConfigs(
               contextSize = llmMaxToken,
               topK = defaultTopK,
               topP = defaultTopP,
               temperature = defaultTemperature,
+              accelerators = listOf(Accelerator.CPU),
             )
           } else if (runtimeType == RuntimeType.AICORE) {
             createAICoreConfigs(

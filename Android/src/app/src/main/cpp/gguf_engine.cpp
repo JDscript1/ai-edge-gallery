@@ -6,14 +6,14 @@
 #include <stdexcept>
 
 namespace gallery {
-GgufEngine::GgufEngine(const std::string & path, int context_size, int threads) {
+GgufEngine::GgufEngine(const std::string & path, int context_size, int threads, int gpu_layers) {
     static std::once_flag initialized;
     std::call_once(initialized, [] { llama_backend_init(); });
-    if (context_size < 256 || context_size > 8192) {
-        throw std::runtime_error("GGUF context must be between 256 and 8192 tokens");
+    if (context_size < 256 || context_size > 16384) {
+        throw std::runtime_error("GGUF context must be between 256 and 16384 tokens");
     }
     auto mp = llama_model_default_params();
-    mp.n_gpu_layers = 0;
+    mp.n_gpu_layers = gpu_layers;
     mp.load_mode = LLAMA_LOAD_MODE_MMAP;
     model_ = llama_model_load_from_file(path.c_str(), mp);
     if (!model_) throw std::runtime_error("Cannot load this GGUF. Check the model architecture, quantization and available RAM.");
@@ -25,8 +25,17 @@ GgufEngine::GgufEngine(const std::string & path, int context_size, int threads) 
         cp.n_ubatch = 64;
         cp.n_threads = std::clamp(threads, 1, 8);
         cp.n_threads_batch = cp.n_threads;
-        cp.offload_kqv = false;
-        cp.op_offload = false;
+        cp.offload_kqv = gpu_layers != 0;
+        cp.op_offload = gpu_layers != 0;
+        if (gpu_layers == 0) {
+            // Q8_0 keeps the KV cache near half its f16 size. llama.cpp switches CPU
+            // flash attention on by itself, as a quantized V cache requires it.
+            cp.type_k = GGML_TYPE_Q8_0;
+            cp.type_v = GGML_TYPE_Q8_0;
+        } else {
+            // Adreno's Vulkan driver cannot compile the scalar flash-attention pipeline.
+            cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+        }
         cp.abort_callback = [](void * data) { return static_cast<GgufEngine *>(data)->cancelled(); };
         cp.abort_callback_data = this;
         context_ = llama_init_from_model(model_, cp);
@@ -35,6 +44,7 @@ GgufEngine::GgufEngine(const std::string & path, int context_size, int threads) 
             throw std::runtime_error("This GGUF has no chat template. Import an instruction/chat model with its tokenizer.chat_template metadata.");
         }
         templates_ = common_chat_templates_init(model_, "");
+        supports_thinking_ = common_chat_templates_support_enable_thinking(templates_.get());
     } catch (...) {
         if (context_) llama_free(context_);
         llama_model_free(model_);
@@ -60,9 +70,10 @@ std::vector<llama_token> GgufEngine::tokenize(const std::string & text, bool spe
     return tokens;
 }
 
-std::string GgufEngine::prompt(const std::vector<ChatMessage> & messages) const {
+common_chat_params GgufEngine::prompt(const std::vector<ChatMessage> & messages, bool thinking) const {
     common_chat_templates_inputs inputs;
-    inputs.enable_thinking = false;
+    inputs.enable_thinking = thinking && supports_thinking_;
+    inputs.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
     inputs.add_generation_prompt = true;
     for (const auto & message : messages) {
         common_chat_msg msg;
@@ -70,18 +81,27 @@ std::string GgufEngine::prompt(const std::vector<ChatMessage> & messages) const 
         msg.content = message.content;
         inputs.messages.push_back(std::move(msg));
     }
-    return common_chat_templates_apply(templates_.get(), inputs).prompt;
+    return common_chat_templates_apply(templates_.get(), inputs);
 }
 
 int GgufEngine::count(const std::string & text) const { return tokenize(text, false).size(); }
-int GgufEngine::count_input(const std::vector<ChatMessage> & messages) const {
-    return tokenize(prompt(messages), true).size();
+int GgufEngine::count_input(const std::vector<ChatMessage> & messages, bool thinking) const {
+    return tokenize(prompt(messages, thinking).prompt, true).size();
 }
 
 std::string GgufEngine::generate(const std::vector<ChatMessage> & messages, int max_tokens,
                                int top_k, float top_p, float temperature,
-                               const std::function<void(const std::string &)> & on_piece) {
-    const auto tokens = tokenize(prompt(messages), true);
+                               const std::function<void(const std::string &)> & on_piece,
+                               bool thinking,
+                               const std::function<void(const std::string &)> & on_thinking) {
+    const auto chat = prompt(messages, thinking);
+    const auto tokens = tokenize(chat.prompt, true);
+    common_chat_parser_params parser(chat);
+    parser.reasoning_format = COMMON_REASONING_FORMAT_DEEPSEEK;
+    parser.parse_tool_calls = false;
+    const bool split_channels = on_thinking && !chat.parser.empty();
+    if (split_channels) parser.parser.load(chat.parser);
+    common_chat_msg previous;
     if (tokens.empty()) throw std::runtime_error("The chat template produced an empty prompt");
     const int capacity = llama_n_ctx(context_);
     if (tokens.size() >= static_cast<size_t>(capacity)) {
@@ -107,6 +127,15 @@ std::string GgufEngine::generate(const std::vector<ChatMessage> & messages, int 
         llama_sampler_chain_add(sampler.get(), llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
     }
     std::string result;
+    const auto emit = [&](bool partial) {
+        const auto message = common_chat_parse(result, partial, parser);
+        if (message.empty()) return;
+        for (const auto & delta : common_chat_msg_diff::compute_diffs(previous, message)) {
+            if (!delta.reasoning_content_delta.empty()) on_thinking(delta.reasoning_content_delta);
+            if (!delta.content_delta.empty()) on_piece(delta.content_delta);
+        }
+        previous = message;
+    };
     for (int i = 0; i < limit && !cancelled(); ++i) {
         llama_token token = llama_sampler_sample(sampler.get(), context_, -1);
         if (llama_vocab_is_eog(vocab_, token)) break;
@@ -119,13 +148,15 @@ std::string GgufEngine::generate(const std::vector<ChatMessage> & messages, int 
         if (n < 0) throw std::runtime_error("Cannot decode a generated token");
         piece.resize(n);
         result += piece;
-        on_piece(piece);
+        if (split_channels) emit(true);
+        else on_piece(piece);
         if (cancelled() || i + 1 == limit) break;
         auto batch = llama_batch_get_one(&token, 1);
         if (llama_decode(context_, batch) != 0 && !cancelled()) {
             throw std::runtime_error("GGUF token generation failed");
         }
     }
+    if (split_channels) emit(false);
     return result;
 }
 }

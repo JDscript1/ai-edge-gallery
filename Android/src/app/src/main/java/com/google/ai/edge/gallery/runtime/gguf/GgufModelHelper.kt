@@ -3,6 +3,7 @@ package com.google.ai.edge.gallery.runtime.gguf
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.ai.edge.gallery.data.Accelerator
 import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.markInitializationFailed
@@ -33,7 +34,7 @@ import org.json.JSONObject
 
 private data class GgufMessage(val role: String, val content: String)
 
-private class GgufInstance(val handle: Long) {
+private class GgufInstance(val handle: Long, val supportsThinking: Boolean) {
   val mutex = Mutex()
   val busy = AtomicBoolean(false)
   val closing = AtomicBoolean(false)
@@ -42,9 +43,12 @@ private class GgufInstance(val handle: Long) {
   var cleanUpListener: CleanUpListener? = null
 }
 
-/** Local ARM64 CPU chat using the pinned PrismML llama.cpp runtime. */
+/** Local ARM64 chat using the pinned PrismML llama.cpp runtime. */
 object GgufModelHelper : LlmModelHelper {
   private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+  fun supportsThinking(model: Model): Boolean =
+    (model.instance as? GgufInstance)?.supportsThinking == true
 
   private fun messages(system: Contents?, initial: List<Message>): List<GgufMessage> = buildList {
     system?.toString()?.takeIf { it.isNotBlank() }?.let { add(GgufMessage("system", it)) }
@@ -82,14 +86,21 @@ object GgufModelHelper : LlmModelHelper {
           withContext(Dispatchers.Main) { onDone("") }
           return@launch
         }
-        val contextSize = model.getIntConfigValue(ConfigKeys.MAX_TOKENS, 2048).coerceIn(256, 8192)
-        openedHandle = GgufNative.open(
-          model.getPath(context).toByteArray(Charsets.UTF_8), contextSize,
-          Runtime.getRuntime().availableProcessors().coerceIn(1, 4),
-        )
+        val contextSize = model.getIntConfigValue(ConfigKeys.MAX_TOKENS, 2048).coerceIn(256, 16384)
+        GgufNative.checkAvailable()
+        val path = model.getPath(context).toByteArray(Charsets.UTF_8)
+        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        // Vulkan GGUF offload is disabled: this Adreno driver rejects several llama.cpp
+        // compute pipelines and loses the device once a few layers are offloaded. A model
+        // saved with the old GPU setting must still start, so correct the label too.
+        openedHandle = GgufNative.open(path, contextSize, threads, 0)
+        if (model.currentAccelerator == Accelerator.GPU) {
+          model.configValues =
+            model.configValues + (ConfigKeys.ACCELERATOR.label to Accelerator.CPU.label)
+        }
         check(openedHandle != 0L) { "Cannot initialize the GGUF engine" }
         check(!model.cleanUpAfterInit) { "Model loading was cancelled" }
-        val instance = GgufInstance(openedHandle)
+        val instance = GgufInstance(openedHandle, GgufNative.supportsThinking(openedHandle))
         instance.history.addAll(messages(systemInstruction, initialMessages))
         model.markInitialized(instance)
         openedHandle = 0L
@@ -167,6 +178,10 @@ object GgufModelHelper : LlmModelHelper {
           }
           val response = StringBuilder()
           val decoder = Utf8TokenDecoder()
+          val thinkingDecoder = Utf8TokenDecoder()
+          val thinking = instance.supportsThinking &&
+            (extraContext["enable_thinking"]?.toBooleanStrictOrNull()
+              ?: model.getBooleanConfigValue(ConfigKeys.ENABLE_THINKING, false))
           val maxOutput = extraContext[EXTRA_CONTEXT_MAX_OUTPUT_TOKENS]?.toIntOrNull()
             ?: model.getIntConfigValue(ConfigKeys.MAX_OUTPUT_TOKENS, 512)
           GgufNative.generate(
@@ -174,11 +189,17 @@ object GgufModelHelper : LlmModelHelper {
             model.getIntConfigValue(ConfigKeys.TOPK, 40),
             model.getFloatConfigValue(ConfigKeys.TOPP, 0.95f),
             model.getFloatConfigValue(ConfigKeys.TEMPERATURE, 0.7f),
-          ) { bytes ->
-            val piece = decoder.decode(bytes)
-            response.append(piece)
-            if (piece.isNotEmpty()) resultListener(piece, false, null)
+            thinking,
+          ) { bytes, isThinking ->
+            val piece = if (isThinking) thinkingDecoder.decode(bytes) else decoder.decode(bytes)
+            if (!isThinking) response.append(piece)
+            if (piece.isNotEmpty()) {
+              if (isThinking) resultListener("", false, piece)
+              else resultListener(piece, false, null)
+            }
           }
+          val thinkingTail = thinkingDecoder.decode(ByteArray(0), end = true)
+          if (thinkingTail.isNotEmpty()) resultListener("", false, thinkingTail)
           val tail = decoder.decode(ByteArray(0), end = true)
           if (tail.isNotEmpty()) { response.append(tail); resultListener(tail, false, null) }
           synchronized(instance.history) {
@@ -218,7 +239,8 @@ object GgufModelHelper : LlmModelHelper {
       if (instance.closing.get()) null
       else {
         val history = synchronized(instance.history) { instance.history.toList() }
-        GgufNative.count(instance.handle, encode(history + GgufMessage("user", input)), true)
+        GgufNative.count(instance.handle, encode(history + GgufMessage("user", input)), true,
+          instance.supportsThinking && model.getBooleanConfigValue(ConfigKeys.ENABLE_THINKING, false))
       }
     }
   }

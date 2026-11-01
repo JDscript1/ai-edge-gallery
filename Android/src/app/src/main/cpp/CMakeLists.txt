@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(gallery_gguf LANGUAGES C CXX)
 option(GALLERY_GGUF_HOST_CHECK "Build the command-line inference check" OFF)
+option(GALLERY_GGUF_VULKAN "Build with the Vulkan backend (Android)" ${ANDROID})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -16,6 +17,9 @@ set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 set(GGML_BACKEND_DL OFF CACHE BOOL "" FORCE)
 set(GGML_CPU_ALL_VARIANTS OFF CACHE BOOL "" FORCE)
+if(GALLERY_GGUF_VULKAN)
+  set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+endif()
 # Baseline ARM64, rather than instructions available only on the build host.
 if(ANDROID)
   set(GGML_CPU_ARM_ARCH "armv8-a" CACHE STRING "" FORCE)

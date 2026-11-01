@@ -469,13 +469,27 @@ fun createGgufChatConfigs(
   topK: Int = DEFAULT_TOPK,
   topP: Float = DEFAULT_TOPP,
   temperature: Float = DEFAULT_TEMPERATURE,
+  accelerators: List<Accelerator> = listOf(Accelerator.CPU),
 ): List<Config> = listOf(
-  createMaxTokensSliderConfig(ConfigKeys.MAX_TOKENS, sliderMin = 512, defaultValue = contextSize.coerceIn(512, 4096)),
+  createMaxTokensSliderConfig(
+    ConfigKeys.MAX_TOKENS,
+    sliderMin = 512,
+    sliderMax = 16384,
+    defaultValue = contextSize.coerceIn(512, 16384),
+  ),
   createMaxTokensSliderConfig(ConfigKeys.MAX_OUTPUT_TOKENS, sliderMin = 32, sliderMax = 2048, defaultValue = 512),
   createTopKSliderConfig(defaultValue = topK),
   createTopPSliderConfig(defaultValue = topP),
   createTemperatureSliderConfig(defaultValue = temperature),
-  LabelConfig(ConfigKeys.ACCELERATOR, Accelerator.CPU.label),
+  if (accelerators.size > 1) {
+    SegmentedButtonConfig(
+      key = ConfigKeys.ACCELERATOR,
+      defaultValue = accelerators[0].label,
+      options = accelerators.map { it.label },
+    )
+  } else {
+    LabelConfig(ConfigKeys.ACCELERATOR, (accelerators.firstOrNull() ?: Accelerator.CPU).label)
+  },
 )
 
 /**

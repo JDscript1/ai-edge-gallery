@@ -8,15 +8,19 @@ Aplicația are ID-ul `com.jdscript.edgegallery` și se poate instala alături de
 1. Deschide **AI Chat** sau **Prompt Lab**.
 2. Alege **Bonsai-1.7B-Q1_0** din catalog și descarcă modelul (248 MB).
 3. Pentru un model mai mare, catalogul include și **Bonsai-4B-Q1_0** (572 MB).
-4. Alte modele se importă din managerul de modele: un fișier local `.gguf`, un link direct sau un repository Hugging Face.
+4. Alte modele se importă cu butonul **Add model** din lista de modele a sarcinii sau cu `+` din managerul de modele (meniul lateral → Models): un fișier local `.gguf`, un link direct sau un repository Hugging Face.
+5. Recomandările de modele vin din catalogul upstream Google, potrivit versiunii de bază (`1.0.20`); modelele Bonsai rămân disponibile ca rezervă când catalogul nu poate fi descărcat.
+
+În AI Chat, bifa **Thinking ON/OFF** deasupra casetei de mesaj apare când modelul încărcat acceptă schimbarea modului. Se aplică următorului răspuns, fără reîncărcarea modelului; este dezactivată în timpul generării. Gândirea este afișată în panoul separat existent și folosește aceeași limită de tokeni ca răspunsul.
 
 Modelele Bonsai din catalog sunt publice și nu cer autentificare Hugging Face.
 Modelele cu acces restricționat folosesc fluxul OAuth al aplicației originale, care necesită propria configurație Hugging Face din `DEVELOPMENT.md`.
 
 ## Memorie și compatibilitate
 
-- Android 12+, ARM64. Inferența GGUF rulează local pe CPU, cu cel mult patru fire.
-- Context inițial: 2048 de tokeni. Răspuns inițial: cel mult 512 tokeni. Ambele limite sunt configurabile separat.
+- Android 12+, ARM64. Inferența GGUF rulează local pe CPU (cel mult patru fire). Backendul Vulkan rămâne compilat, dar este dezactivat în aplicație: driverul Adreno 740 nu compilează unele pipeline-uri llama.cpp, iar offload-ul măsurat este mai lent decât CPU. Detalii în [HYBRID_RUNTIME.md](HYBRID_RUNTIME.md).
+- Context inițial: 2048 de tokeni, reglabil până la 16384. Răspuns inițial: cel mult 512 tokeni. Ambele limite sunt configurabile separat.
+- Cache-ul KV folosește Q8_0, iar atenția rulează pe CPU cu flash-attention (necesar pentru V cuantizat). La 16384 de tokeni, Bonsai-27B Q1_0 are nevoie de circa 544 MiB pentru KV, față de 1024 MiB la F16. Cu cât contextul ales este mai mare, cu atât încărcarea și prelucrarea promptului durează mai mult pe CPU.
 - Pentru un telefon cu 4–5 GB RAM, începe cu Bonsai 1.7B. Dimensiunea fișierului nu reprezintă memoria totală folosită.
 - Sunt disponibile chatul text, istoricul conversației, instrucțiunea de sistem, răspunsurile progresive și oprirea generării.
 - Șabloanele de conversație Jinja se citesc din metadatele GGUF. Un fișier fără șablon de chat este respins explicit.
@@ -24,20 +28,26 @@ Modelele cu acces restricționat folosesc fluxul OAuth al aplicației originale,
 - Contextul nativ se reconstruiește la fiecare răspuns, folosind istoricul; conversațiile lungi vor avea un timp de pregătire mai mare. La depășirea contextului, aplicația cere o conversație nouă.
 - Generarea de imagini, intrările imagine/audio și instrumentele pentru agenți nu sunt conectate la motorul GGUF.
 
-## Compilare
+## Compilare locală pe telefon
+
+Dezvoltarea și compilarea se fac în Termux. Modificările rămân locale până la o cerere explicită de publicare.
+
+Din `~/ai-edge-gallery`:
 
 ```sh
-git clone --recurse-submodules https://github.com/JDscript1/ai-edge-gallery.git
-cd ai-edge-gallery
-git switch feat/bonsai-local-models
-git submodule update --init --recursive
-cd Android/src
-./gradlew :app:assembleDebug :app:testDebugUnitTest
+python scripts/build-local.py
 ```
 
-Se folosesc JDK 21, Android SDK 37.0, NDK `27.1.12297006` și CMake `3.22.1`.
-Workflow-ul **Build Bonsai Android** compilează APK-ul pe un runner GitHub și îl păstrează în artefactele rulării.
+Scriptul compilează motorul GGUF cu Clang ARM64 de pe telefon, folosind antetele și bibliotecile Android din NDK, apoi pornește Gradle local pentru APK. Opțiunea `--tests` pornește și testele unitare.
+Se folosesc JDK 21, Gradle 9.2.1, Android SDK 37.0, build-tools `36.0.0`, NDK `27.1.12297006`, CMake din Termux și Protobuf `33.1` cu runtime Java/Kotlin `4.33.1`.
+Prima rulare pregătește automat un AAPT2 modern în `.local-build/tools/`: executabilul Google din SDK rulează pe telefon prin QEMU nativ Termux, cu biblioteci GLIBC private. Pachetele descărcate au SHA-256 fixat în `scripts/setup-local-tools.py`. Nu se folosește un calculator sau un serviciu de compilare extern.
+Buildul folosește `cmake/termux-android.cmake`; NDK-ul comun și celelalte proiecte nu sunt modificate.
+Înainte de Gradle, verifică legarea dinamică și deschiderea bibliotecii GGUF cu loaderul Android, fără bibliotecile private Termux. Bibliotecile de sistem se caută întâi în directorul NDK pentru API 31, pentru a evita includerea accidentală a Bionic static și eroarea TLS la `System.loadLibrary`.
+Artefactele native intermediare sunt în `.local-build/android-arm64/`, iar bibliotecile pentru APK în `Android/src/app/build/termux-native/jniLibs/arm64-v8a/`.
+
 APK: `Android/src/app/build/outputs/apk/debug/app-debug.apk`.
+După o compilare reușită, scriptul verifică semnătura și înlocuiește atomic `Download/Local-Edge-Gallery-Bonsai.apk`, după verificarea SHA-256. Instalatoarele vechi cu nume de versiune ale acestei aplicații sunt eliminate; în Download se păstrează un singur APK.
+Pentru compilarea doar a bibliotecii native: `python scripts/build-local.py --native-only`.
 
 Motorul folosește submodulul [PrismML-Eng/llama.cpp](https://github.com/PrismML-Eng/llama.cpp),
 fixat la `e3de715222b2667c54a267441159a5729f11155e` (`prism-b10777-e3de715`).
